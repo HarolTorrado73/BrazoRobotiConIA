@@ -1,0 +1,8 @@
+adafruit-circuitpython-servokit
+RPi.GPIO
+opencv-python
+numpy
+flask
+flask-socketio
+tensorflow
+pillow

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Sistema de calibración y pruebas para brazo robótico
-Permite verificar y ajustar el funcionamiento de todos los componentes
+permitiendo verificar y ajustar el funcionamiento de todos los componentes
 """
 
 import time
@@ -43,7 +43,7 @@ class CalibrationSystem:
             except Exception as e:
                 logger.error(f"Error cargando datos de calibración: {e}")
 
-        # Valores por defecto
+        # Valores por defecto a simple vista
         return {
             'servo_offsets': {'base': 0, 'shoulder': 0, 'elbow': 0, 'gripper': 0},
             'stepper_steps_per_mm': 100,  # pasos por mm
@@ -202,7 +202,7 @@ class CalibrationSystem:
 
     def calibrate_robot_arm(self):
         """
-        Calibración del brazo robótico completo
+        Calibración del brazo robótico completo con ajuste de offsets
         """
         logger.info("Calibrando brazo robótico...")
 
@@ -224,7 +224,7 @@ class CalibrationSystem:
             else:
                 logger.warning(f"No se pudo alcanzar posición {pos}")
 
-        # Probar cinemática
+        # Probar cinemática y ajustar offsets si es necesario
         test_angles = {'base': 45, 'shoulder': 90, 'elbow': 45}
         self.servo_controller.move_all(test_angles)
         time.sleep(2)
@@ -233,6 +233,21 @@ class CalibrationSystem:
         fk_pos = self.robot_arm.forward_kinematics(**test_angles)
         logger.info(f"Posición FK calculada: {fk_pos}")
 
+        # Calcular cinemática inversa de la posición FK para verificar consistencia
+        ik_angles = self.robot_arm.inverse_kinematics(*fk_pos)
+        if ik_angles:
+            logger.info(f"Verificación IK/FK: Ángulos originales {test_angles}, calculados {ik_angles}")
+            # Aquí se podría ajustar offsets si hay discrepancias grandes
+        else:
+            logger.warning("No se pudo calcular IK para verificación")
+
+        # Intentar ajuste automático de offsets (básico)
+        offset_adjustments = self.auto_adjust_offsets()
+        if offset_adjustments:
+            logger.info(f"Ajustes de offset calculados: {offset_adjustments}")
+            for servo, adjustment in offset_adjustments.items():
+                self.calibration_data['servo_offsets'][servo] += adjustment
+
         # Volver a home
         self.robot_arm.home_position()
 
@@ -240,10 +255,116 @@ class CalibrationSystem:
             'positions_tested': len(test_positions),
             'positions_reached': success_count,
             'kinematics_test': True,
-            'forward_kinematics_pos': fk_pos
+            'forward_kinematics_pos': fk_pos,
+            'offset_adjustments': offset_adjustments
         }
 
         return results
+
+    def auto_adjust_offsets(self):
+        """
+        Intenta ajustar offsets automáticamente usando posiciones conocidas
+        """
+        logger.info("Intentando ajuste automático de offsets...")
+
+        # Posición de prueba conocida
+        test_pos = (200, 0, 150)
+        expected_angles = {'base': 90, 'shoulder': 90, 'elbow': 0}  # Ángulos esperados aproximados
+
+        # Mover a posición
+        if not self.robot_arm.move_to_position(*test_pos, 'slow'):
+            return None
+
+        time.sleep(1)
+
+        # Obtener ángulos actuales de los servos
+        current_angles = {}
+        for servo in ['base', 'shoulder', 'elbow']:
+            angle = self.servo_controller.get_angle(servo)
+            if angle is not None:
+                current_angles[servo] = angle
+
+        if len(current_angles) < 3:
+            logger.warning("No se pudieron leer todos los ángulos de servos")
+            return None
+
+        # Calcular ajustes (diferencia entre esperado y actual)
+        adjustments = {}
+        for servo in ['base', 'shoulder', 'elbow']:
+            if servo in expected_angles and servo in current_angles:
+                adjustment = expected_angles[servo] - current_angles[servo]
+                adjustments[servo] = adjustment
+                logger.info(f"Ajuste para {servo}: {adjustment}°")
+
+        return adjustments if adjustments else None
+
+    def measure_position_accuracy(self, test_positions=None):
+        """
+        Mide precisión de posicionamiento usando medición manual o visión
+        """
+        logger.info("Midiendo precisión de posicionamiento...")
+
+        if test_positions is None:
+            test_positions = [
+                (200, 0, 150),
+                (150, 100, 100),
+                (100, -50, 200)
+            ]
+
+        accuracy_results = {}
+
+        for target_pos in test_positions:
+            tx, ty, tz = target_pos
+
+            # Mover a posición
+            if not self.robot_arm.move_to_position(tx, ty, tz, 'slow'):
+                logger.warning(f"No se pudo mover a {target_pos}")
+                continue
+
+            time.sleep(2)  # Esperar estabilización
+
+            # Intentar medir con visión
+            measured_pos = None
+            if hasattr(self.vision_system, 'detect_position_marker'):
+                try:
+                    measured_pos = self.vision_system.detect_position_marker()
+                    logger.info(f"Posición medida con visión: {measured_pos}")
+                except Exception as e:
+                    logger.warning(f"Error en medición con visión: {e}")
+
+            # Si no hay visión, pedir medición manual
+            if measured_pos is None:
+                print(f"\nPosición objetivo: ({tx}, {ty}, {tz})")
+                try:
+                    mx = float(input("Medir coordenada X real (mm): "))
+                    my = float(input("Medir coordenada Y real (mm): "))
+                    mz = float(input("Medir coordenada Z real (mm): "))
+                    measured_pos = (mx, my, mz)
+                except ValueError:
+                    logger.warning("Entrada inválida, omitiendo medición")
+                    continue
+
+            # Calcular error
+            if measured_pos:
+                mx, my, mz = measured_pos
+                error_x = mx - tx
+                error_y = my - ty
+                error_z = mz - tz
+                total_error = math.sqrt(error_x**2 + error_y**2 + error_z**2)
+
+                accuracy_results[str(target_pos)] = {
+                    'target': target_pos,
+                    'measured': measured_pos,
+                    'error': (error_x, error_y, error_z),
+                    'total_error': total_error
+                }
+
+                logger.info(f"Error en {target_pos}: {total_error:.2f} mm")
+
+                # Aprender corrección
+                self.robot_arm.learn_position_correction(target_pos, measured_pos)
+
+        return accuracy_results
 
     def run_diagnostic_tests(self):
         """
@@ -392,7 +513,8 @@ if __name__ == "__main__":
         print("Sistema de Calibración para Brazo Robótico")
         print("1. Ejecutar calibración completa")
         print("2. Ejecutar pruebas diagnósticas")
-        print("3. Salir")
+        print("3. Medir precisión de posicionamiento")
+        print("4. Salir")
 
         choice = input("Seleccione opción: ")
 
@@ -404,6 +526,11 @@ if __name__ == "__main__":
         elif choice == '2':
             results = cal.run_diagnostic_tests()
             print("Pruebas completadas")
+            print(json.dumps(results, indent=2))
+
+        elif choice == '3':
+            results = cal.measure_position_accuracy()
+            print("Medición de precisión completada")
             print(json.dumps(results, indent=2))
 
         else:

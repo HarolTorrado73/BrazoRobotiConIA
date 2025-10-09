@@ -25,9 +25,22 @@ Sistema completo de brazo robótico de 4 grados de libertad con capacidades de v
 
 # O instalar manualmente:
 sudo apt update && sudo apt install -y python3 python3-pip python3-venv
+sudo apt upgrade
 python3 -m venv robot_env
 source robot_env/bin/activate
-pip install -r ../requirements.txt
+pip install adafruit-circuitpython-servokit==1.3.21
+pip install RPi.GPIO==0.7.1
+pip install git+https://github.com/chrisjbillington/TMC2209.git
+pip install opencv-python==4.8.1.78
+pip install picamera2==0.3.7
+pip install numpy==1.24.3
+pip install pillow==10.0.0
+pip install flask==2.3.3
+pip install python-socketio==5.8.0
+pip install flask-socketio==5.3.6
+pip install tensorflow==2.13.0
+pip install pygame==2.5.0
+pip install matplotlib==3.7.2
 ```
 
 ### 2. Configurar hardware
@@ -53,8 +66,8 @@ python3 -c "from robot_arm import RobotArm; print('✅ Instalación exitosa')"
 ### Modo Básico
 ```bash
 # Activar entorno virtual
-source ~/BrazoRobotico/robot_env/bin/activate
-cd ~/BrazoRobotico/hecho
+source ~/Documents/robot/robot_env/bin/activate
+cd ~/Documents/robot/brazo/hecho
 
 # Ejecutar brazo robótico
 python3 main.py

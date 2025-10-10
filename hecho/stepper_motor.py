@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Controlador de motor paso a paso NEMA 17 usando TMC2208
+Controlador de motor paso a paso NEMA 17 usando TMC2209
 Compatible con Raspberry Pi 5
 """
 
 import time
 import logging
 import RPi.GPIO as GPIO
-from tmc2209 import TMC2209
+from TMC2209 import TMC2209
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 class StepperMotor:
     def __init__(self, en_pin=22, dir_pin=23, step_pin=24, uart_port="/dev/serial0"):
         """
-        Inicializa el controlador TMC2208 para motor NEMA 17
+        Inicializa el controlador TMC2209 para motor NEMA 17
         Args:
             en_pin: Pin GPIO para enable
             dir_pin: Pin GPIO para dirección
             step_pin: Pin GPIO para step
-            uart_port: Puerto UART para comunicación con TMC2208
+            uart_port: Puerto UART para comunicación con TMC2209
         """
         # Configurar GPIO
         GPIO.setmode(GPIO.BCM)
@@ -32,19 +32,18 @@ class StepperMotor:
         self.dir_pin = dir_pin
         self.step_pin = step_pin
 
-        # Inicializar TMC2208
+        # Inicializar TMC2209
         try:
             self.driver = TMC2209(
+                0,  # Dirección por defecto
                 serialport=uart_port,
-                baudrate=115200,
-                address=0x00,  # Dirección por defecto
-                gpio_mode=False  # Usar UART en lugar de GPIO
+                baudrate=115200
             )
 
             # Configurar driver
             self.driver.setCurrent(800)  # Corriente en mA (ajustar según motor)
-            self.driver.setMicrosteppingResolution(16)  # Microstepping 1/16
-            self.driver.setMotorEnabled(True)
+            self.driver.setMicrosteps(16)  # Microstepping 1/16
+            self.driver.setEnabled(True)
 
             # Configuración para NEMA 17
             self.steps_per_revolution = 200  # Pasos por vuelta del motor
@@ -58,7 +57,7 @@ class StepperMotor:
             # Deshabilitar motor inicialmente
             GPIO.output(self.en_pin, GPIO.HIGH)
 
-            logger.info("StepperMotor inicializado con TMC2208")
+            logger.info("StepperMotor inicializado con TMC2209")
 
         except Exception as e:
             logger.error(f"Error inicializando TMC2208: {e}")
@@ -67,13 +66,13 @@ class StepperMotor:
     def enable_motor(self):
         """Habilita el motor"""
         GPIO.output(self.en_pin, GPIO.LOW)
-        self.driver.setMotorEnabled(True)
+        self.driver.setEnabled(True)
         logger.debug("Motor habilitado")
 
     def disable_motor(self):
         """Deshabilita el motor"""
         GPIO.output(self.en_pin, GPIO.HIGH)
-        self.driver.setMotorEnabled(False)
+        self.driver.setEnabled(False)
         logger.debug("Motor deshabilitado")
 
     def set_direction(self, clockwise=True):

@@ -108,7 +108,7 @@ def test_calibration_system():
     print("\n🎯 Probando CalibrationSystem...")
 
     try:
-        from calibration_system import CalibrationSystem
+        from hecho.calibration_system import CalibrationSystem
         cal = CalibrationSystem()
         print("✅ CalibrationSystem inicializado")
 

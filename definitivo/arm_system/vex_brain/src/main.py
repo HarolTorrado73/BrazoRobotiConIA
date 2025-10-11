@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------------- #
 #                                                                              #
 # 	Module:       main.py                                                      #
-# 	Author:       santi                                                        #
+# 	Author:       Harol Camilo Melo Torrado                                                            #
 # 	Created:      2/21/2025, 3:46:40 PM                                        #
 # 	Description:  IQ2 project                                                  #
 #                                                                              #

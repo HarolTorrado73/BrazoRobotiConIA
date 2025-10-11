@@ -19,15 +19,70 @@ Este repositorio guía en la construcción paso a paso de un brazo robótico aut
 ### 1. Clonar el repositorio
 ```bash
 git clone <url-del-repositorio>
+cd BrazoRoboticoConIA
 cd definitivo
 ```
 
-### 2. Instalar dependencias
+### 2. Crear y activar entorno virtual
 ```bash
+# Crear el entorno virtual
+python -m venv venv
+
+# Activar el entorno virtual
+# En Windows
+venv\Scripts\activate
+
+# En Linux/Mac
+source venv/bin/activate
+```
+
+### 3. Instalar dependencias del sistema
+```bash
+# En Ubuntu/Debian (necesario para la Raspberry Pi)
+sudo apt update
+sudo apt install -y \
+    python3-dev \
+    python3-setuptools \
+    python3-pip \
+    python3-smbus \
+    build-essential \
+    git \
+    i2c-tools \
+    python3-rpi.gpio \
+    libopencv-dev \
+    python3-opencv \
+    ffmpeg \
+    python3-numpy \
+    libhdf5-dev \
+    python3-h5py \
+    libqt5gui5 \
+    python3-pyqt5 \
+    cmake \
+    gcc \
+    g++ \
+    wget
+
+# Habilitar I2C y la cámara
+sudo raspi-config nonint do_i2c 0
+sudo raspi-config nonint do_camera 0
+
+# Agregar usuario al grupo i2c y video
+sudo usermod -a -G i2c,video $USER
+```
+
+### 4. Instalar dependencias de Python
+```bash
+# Asegúrate de que el entorno virtual está activado (verás (venv) al inicio del prompt)
+pip install --upgrade pip setuptools wheel
+
+# Instalar torch para ARM (específico para Raspberry Pi)
+pip install --extra-index-url https://www.piwheels.org/simple torch torchvision
+
+# Instalar el resto de dependencias
 pip install -r requirements.txt
 ```
 
-### 3. Configurar I2C y GPIO
+### 5. Configurar I2C y GPIO
 Asegúrate de que I2C esté habilitado en Raspberry Pi:
 ```bash
 sudo raspi-config

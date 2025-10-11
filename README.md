@@ -49,18 +49,31 @@ sudo apt install -y \
     git \
     i2c-tools \
     python3-rpi.gpio \
+    python3-lgpio \     # Específico para Raspberry Pi 5
+    python3-gpiozero \ # Para control GPIO de alto nivel
     libopencv-dev \
     python3-opencv \
     ffmpeg \
-    python3-numpy \
-    libhdf5-dev \
-    python3-h5py \
-    libqt5gui5 \
-    python3-pyqt5 \
+    libxml2-dev \
+    libxslt1-dev \
+    libdbus-1-dev \
+    libglib2.0-dev \
+    pkg-config \
     cmake \
     gcc \
     g++ \
     wget
+
+# Para Raspberry Pi 5, necesitamos estos paquetes adicionales
+sudo apt install -y \
+    python3-lgpio \     # Nueva biblioteca GPIO para Pi 5
+    python3-pigpio \    
+    libpigpio1
+
+# Configurar permisos y servicios para GPIO
+sudo usermod -a -G gpio $USER    # Agregar usuario al grupo gpio
+sudo systemctl enable pigpiod    # Habilitar el servicio GPIO
+sudo systemctl start pigpiod     # Iniciar el servicio GPIO
 
 # Habilitar I2C y la cámara
 sudo raspi-config nonint do_i2c 0
@@ -75,11 +88,20 @@ sudo usermod -a -G i2c,video $USER
 # Asegúrate de que el entorno virtual está activado (verás (venv) al inicio del prompt)
 pip install --upgrade pip setuptools wheel
 
+# Instalar bibliotecas GPIO específicas para Raspberry Pi 5
+pip install rpi-lgpio adafruit-blinka
+
+# Instalar bibliotecas para el controlador PCA9685
+pip install adafruit-circuitpython-pca9685 adafruit-circuitpython-servokit
+
 # Instalar torch para ARM (específico para Raspberry Pi)
 pip install --extra-index-url https://www.piwheels.org/simple torch torchvision
 
 # Instalar el resto de dependencias
 pip install -r requirements.txt
+
+# Verificar la instalación de GPIO
+python -c "import board; print('GPIO configurado correctamente')"
 ```
 
 ### 5. Configurar I2C y GPIO

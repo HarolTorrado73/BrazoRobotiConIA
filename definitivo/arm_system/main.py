@@ -1,6 +1,7 @@
 import time
 import logging as log
 from control.robot_controller import RobotController
+from communication.serial_manager import CommunicationManager
 
 log.basicConfig(level=log.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -8,7 +9,12 @@ log.basicConfig(level=log.INFO, format="%(asctime)s - %(levelname)s - %(message)
 class Robot:
     def __init__(self):
         self.robot_controller = RobotController()
-
+        self.serial_manager = CommunicationManager()
+        
+        # Inicializar la conexión serial
+        if not self.serial_manager.connect():
+            log.error("No se pudo conectar con el puerto serial")
+        
         # register scan data
         self.scan_results = []
 
@@ -300,6 +306,7 @@ class Robot:
         finally:
             log.info("closing robot controller.")
             self.robot_controller.close()
+            self.serial_manager.close()
 
 
 if __name__ == '__main__':

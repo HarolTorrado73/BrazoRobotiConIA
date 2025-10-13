@@ -8,13 +8,20 @@ log.basicConfig(level=log.INFO, format="%(asctime)s - %(levelname)s - %(message)
 
 class Robot:
     def __init__(self):
+        
         self.robot_controller = RobotController()
-        self.serial_manager = CommunicationManager()
-        
-        # Inicializar la conexión serial
-        if not self.serial_manager.connect():
-            log.error("No se pudo conectar con el puerto serial")
-        
+        self.serial_manager = None  # Inicializar como None
+
+        # Intentar inicializar la conexión serial (opcional)
+        try:
+            self.serial_manager = CommunicationManager()
+            if not self.serial_manager.connect():
+                log.warning("No se pudo conectar con el puerto serial - modo sin hardware")
+                self.serial_manager = None
+        except Exception as e:
+            log.warning(f"Error inicializando comunicación serial: {e} - modo sin hardware")
+            self.serial_manager = None
+
         # register scan data
         self.scan_results = []
 
@@ -35,28 +42,38 @@ class Robot:
             print(" [s] safety service")
             print(" [n] scan service")
             print(" [p] pick & place service")
+            print(" [m] manual control")
             print(" [q] exit")
-            
+
             user_input = input("input command: ").strip().lower()
 
             if user_input == 'c':
-                self.serial_manager.send_message('check_service', {})
-                
+                if self.serial_manager:
+                    self.serial_manager.send_message('check_service', {})
+                else:
+                    log.info("Modo sin hardware - check service simulado")
+
             elif user_input == 's':
-                self.serial_manager.send_message('safety_service', {})
-                
+                if self.serial_manager:
+                    self.serial_manager.send_message('safety_service', {})
+                else:
+                    log.info("Modo sin hardware - safety service simulado")
+
             elif user_input == 'n':
                 self.handle_scan_command()
-                
+
             elif user_input == 'p':
                 self.handle_pick_place_command()
-                
+
+            elif user_input == 'm':
+                self.manual_control_menu()
+
             elif user_input == 'q':
                 running = False
-                
+
             else:
                 print("command unrecognized")
-            
+
             time.sleep(0.5)
             
     # --- SCAN ---
@@ -68,15 +85,27 @@ class Robot:
 
         self.scan_results = []
 
-        camera = CameraManager()
-        detector = DetectionModel()
+        try:
+            camera = CameraManager()
+            detector = DetectionModel()
+        except Exception as e:
+            log.error(f"Error inicializando componentes de visión: {e}")
+            # Simular detección para modo demo
+            self._simulate_detection()
+            return
 
         log.info("scanning in progress...")
 
         # Capture image
-        image_path = camera.capture_image()
-        if not image_path:
-            log.error("failed to capture image")
+        try:
+            image_path = camera.capture_image()
+            if not image_path:
+                log.warning("failed to capture image - usando modo simulado")
+                self._simulate_detection()
+                return
+        except Exception as e:
+            log.warning(f"Error capturando imagen: {e} - usando modo simulado")
+            self._simulate_detection()
             return
 
         # Load image
@@ -165,6 +194,99 @@ class Robot:
             log.info(f"Obj {i} -> angle: {angle}°, distance: {distance}mm, class: {obj_class}, conf: {confidence:.2f}")
 
         self.scan_results = processed_list
+
+    def manual_control_menu(self):
+        """Menú de control manual del brazo"""
+        print("\n=== MANUAL CONTROL ===")
+        print("Controles:")
+        print(" [b<angle>] base angle (ej: b90)")
+        print(" [s<angle>] shoulder angle (ej: s45)")
+        print(" [e<angle>] elbow angle (ej: e90)")
+        print(" [g<angle>] gripper angle (ej: g0 abrir, g90 cerrar)")
+        print(" [a<mm>] arm up/down (ej: a50 subir, a-50 bajar)")
+        print(" [h] home position")
+        print(" [q] back to main menu")
+
+        while True:
+            cmd = input("manual> ").strip().lower()
+            if cmd == 'q':
+                break
+            elif cmd == 'h':
+                self.move_to_home()
+            elif cmd.startswith(('b', 's', 'e', 'g', 'a')):
+                self.parse_manual_command(cmd)
+            else:
+                print("Comando inválido. Use: b<angle>, s<angle>, e<angle>, g<angle>, a<mm>, h, q")
+
+    def parse_manual_command(self, cmd):
+        """Parse manual command like 'b90' or 'a-50'"""
+        try:
+            if cmd[0] in ['b', 's', 'e', 'g']:
+                # Servo control
+                joint_map = {'b': 'base', 's': 'shoulder', 'e': 'elbow', 'g': 'gripper'}
+                joint = joint_map[cmd[0]]
+                angle = int(cmd[1:])
+
+                log.info(f"Moviendo {joint} a {angle}°")
+                if joint == 'base':
+                    self.robot_controller.move_base(angle, speed=10)  # slower for manual
+                elif joint == 'shoulder':
+                    self.robot_controller.move_shoulder(angle, speed=10)
+                elif joint == 'elbow':
+                    self.robot_controller.move_elbow(angle, speed=10)
+                elif joint == 'gripper':
+                    self.robot_controller.move_gripper(angle, speed=10)
+
+            elif cmd.startswith('a'):
+                # Arm control
+                distance = int(cmd[1:])
+                direction = 1 if distance > 0 else -1
+                distance = abs(distance)
+
+                log.info(f"Moviendo brazo {'arriba' if direction > 0 else 'abajo'} {distance}mm")
+                self.robot_controller.move_arm(distance, direction=direction, speed=500)  # slower
+
+        except ValueError:
+            print("Formato inválido. Use números después de la letra.")
+
+    def move_to_home(self):
+        """Move to home position"""
+        log.info("Moviendo a posición home...")
+        self.robot_controller.move_base(90, speed=5)
+        time.sleep(0.5)
+        self.robot_controller.move_shoulder(90, speed=5)
+        time.sleep(0.5)
+        self.robot_controller.move_elbow(90, speed=5)
+        time.sleep(0.5)
+        self.robot_controller.move_gripper(0, speed=5)  # open
+        log.info("Posición home alcanzada")
+
+    def _simulate_detection(self):
+        """Simular detección de objetos para modo demo"""
+        log.info("Modo simulado: Generando detección de ejemplo")
+
+        # Simular objetos detectados
+        simulated_objects = [
+            {
+                'class': 'apple',
+                'confidence': 0.85,
+                'angle': 45,
+                'distance': 180,
+                'image_path': 'simulated'
+            },
+            {
+                'class': 'bottle',
+                'confidence': 0.92,
+                'angle': 135,
+                'distance': 220,
+                'image_path': 'simulated'
+            }
+        ]
+
+        for data in simulated_objects:
+            self._scan_callback(data)
+
+        self.process_scan_results()
     
     # --- PICK & PLACE ---
     def handle_pick_place_command(self):
@@ -252,23 +374,30 @@ class Robot:
                 joint = move['joint']
                 log.info(f"movement: {joint}")
 
-                # execute movement
+                # execute movement - ahora siempre intenta usar hardware directo
                 if joint == 'base':
+                    log.info(f"  HARDWARE: Base -> ángulo {move['angle']}° a velocidad {move.get('speed', 30)}")
                     self.robot_controller.move_base(move['angle'], move.get('speed', 30))
                 elif joint == 'arm':
                     if 'action' in move:
                         if move['action'] == 'pick':
+                            log.info(f"  HARDWARE: Brazo -> bajando {move['distance']}mm para recoger")
                             self.robot_controller.move_arm(move['distance'], direction=-1)  # down
                         elif move['action'] == 'up':
+                            log.info(f"  HARDWARE: Brazo -> subiendo {move.get('distance', 50)}mm")
                             self.robot_controller.up_action(move.get('distance', 50))
                         elif move['action'] == 'place':
+                            log.info(f"  HARDWARE: Brazo -> bajando {move['distance']}mm para colocar")
                             self.robot_controller.move_arm(move['distance'], direction=-1)  # down
                     else:
+                        log.info(f"  HARDWARE: Brazo -> movimiento a distancia {move['distance']}mm")
                         self.robot_controller.move_arm(move['distance'], direction=1)
                 elif joint == 'gripper':
                     if move['action'] == 'close':
+                        log.info(f"  HARDWARE: Pinza -> cerrando")
                         self.robot_controller.place_action()
                     elif move['action'] == 'open':
+                        log.info(f"  HARDWARE: Pinza -> abriendo")
                         self.robot_controller.pick_action()
 
                 # log
@@ -306,7 +435,8 @@ class Robot:
         finally:
             log.info("closing robot controller.")
             self.robot_controller.close()
-            self.serial_manager.close()
+            if self.serial_manager:
+                self.serial_manager.close()
 
 
 if __name__ == '__main__':
